@@ -90,7 +90,7 @@ const CreateDAO: React.FC = () => {
     { number: 3, title: 'Basic Info', description: 'Name and describe your DAO' },
     { number: 4, title: 'Social Links', description: 'Connect your community' },
     { number: 5, title: 'Governance', description: 'Configure your governance token' },
-    { number: 6, title: 'Governance', description: 'Set voting and\nexecution parameters' },
+    { number: 6, title: 'Governance', description: 'Set voting and\nparameters' },
     { number: 7, title: 'Treasury Setup', description: 'Configure treasury management' },
     { number: 8, title: 'Review & Deploy', description: 'Review and deploy your DAO' }
   ];
