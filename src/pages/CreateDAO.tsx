@@ -51,6 +51,7 @@ interface DAOFormData {
   customSocials: { name: string; url: string }[];
   
   // Token Configuration
+  tokenLogo: File | null;
   tokenName: string;
   tokenSymbol: string;
   initialSupply: string;
@@ -97,6 +98,7 @@ const CreateDAO: React.FC = () => {
     customSocials: [],
     
     // Token Configuration
+    tokenLogo: null,
     tokenName: '',
     tokenSymbol: '',
     initialSupply: '1000000',
@@ -221,6 +223,26 @@ const CreateDAO: React.FC = () => {
       }
       
       updateFormData('logo', file);
+    }
+  };
+
+  const handleTokenLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Please upload a JPG, PNG, GIF, or SVG file');
+        return;
+      }
+      
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        return;
+      }
+      
+      updateFormData('tokenLogo', file);
     }
   };
 
@@ -742,47 +764,91 @@ const CreateDAO: React.FC = () => {
               <p className="text-gray-400">Configure your DAO's governance token</p>
             </div>
             
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              {/* Token Logo Upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Token Name *
+                  Token Logo (Optional)
                 </label>
-                <input
-                  type="text"
-                  value={formData.tokenName}
-                  onChange={(e) => updateFormData('tokenName', e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                  placeholder="e.g., Builders Token"
-                />
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-full bg-white/5 border border-white/20 flex items-center justify-center overflow-hidden">
+                    {formData.tokenLogo ? (
+                      <img
+                        src={URL.createObjectURL(formData.tokenLogo)}
+                        alt="Token Logo"
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : (
+                      <Upload className="h-6 w-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/svg+xml"
+                      onChange={handleTokenLogoUpload}
+                      className="hidden"
+                      id="token-logo-upload"
+                    />
+                    <label
+                      htmlFor="token-logo-upload"
+                      className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white hover:bg-white/10 cursor-pointer transition-all"
+                    >
+                      <Upload className="h-4 w-4" />
+                      <span>Upload Token Logo</span>
+                    </label>
+                    <p className="text-gray-400 text-xs mt-2">
+                      100x100px recommended. JPG, PNG, GIF, SVG. Max size: 5MB
+                    </p>
+                  </div>
+                </div>
               </div>
+
+              {/* Token Name and Symbol */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Token Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.tokenName}
+                    onChange={(e) => updateFormData('tokenName', e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                    placeholder="e.g., Builders Token"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Token Symbol *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.tokenSymbol}
+                    onChange={(e) => updateFormData('tokenSymbol', e.target.value.toUpperCase())}
+                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                    placeholder="e.g., BUILD"
+                    maxLength={5}
+                  />
+                </div>
+              </div>
+
+              {/* Initial Supply */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Token Symbol *
+                  Initial Supply
                 </label>
                 <input
-                  type="text"
-                  value={formData.tokenSymbol}
-                  onChange={(e) => updateFormData('tokenSymbol', e.target.value.toUpperCase())}
+                  type="number"
+                  value={formData.initialSupply}
+                  onChange={(e) => updateFormData('initialSupply', e.target.value)}
                   className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                  placeholder="e.g., BUILD"
-                  maxLength={5}
+                  placeholder="1000000"
                 />
+                <p className="text-sm text-gray-400 mt-2">
+                  Total number of governance tokens to mint initially
+                </p>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Initial Supply
-              </label>
-              <input
-                type="number"
-                value={formData.initialSupply}
-                onChange={(e) => updateFormData('initialSupply', e.target.value)}
-                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                placeholder="1000000"
-              />
-              <p className="text-sm text-gray-400 mt-2">
-                Total number of governance tokens to mint initially
-              </p>
             </div>
           </div>
         );
