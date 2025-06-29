@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Check, AlertCircle, Loader, ExternalLink, Upload, X, Plus, Globe, MessageCircle, Send, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, AlertCircle, Loader, ExternalLink, Upload, X, Plus, Globe, MessageCircle, Send, Calendar, Copy, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import { deployDAO, validateDAOParams, type DAODeploymentParams, type DeploymentResult } from '../utils/contracts';
@@ -29,6 +29,24 @@ interface DAOFormData {
   executionDelay: string;
   treasuryAddress: string;
   googleCalendarLink: string;
+  // Governance specific fields
+  governanceIntro: string;
+  governanceImage: File | null;
+  tokenContractType: 'NFT' | 'ERC20';
+  tokenNetwork: 'Ethereum' | 'Polygon' | 'PulseChain';
+  tokenContractAddress: string;
+  snapshotUrl: string;
+  administrators: Array<{
+    address: string;
+    identity: 'Creator' | 'Administrator' | 'Editor';
+    addedTime: string;
+  }>;
+}
+
+interface Administrator {
+  address: string;
+  identity: 'Creator' | 'Administrator' | 'Editor';
+  addedTime: string;
 }
 
 const CreateDAO: React.FC = () => {
@@ -40,6 +58,11 @@ const CreateDAO: React.FC = () => {
   const [newTag, setNewTag] = useState('');
   const [newCustomSocial, setNewCustomSocial] = useState({ name: '', url: '' });
   const [showCustomSocialForm, setShowCustomSocialForm] = useState(false);
+  const [showAddAdministrator, setShowAddAdministrator] = useState(false);
+  const [newAdministrator, setNewAdministrator] = useState({
+    address: '',
+    identity: 'Administrator' as 'Creator' | 'Administrator' | 'Editor'
+  });
   
   const [formData, setFormData] = useState<DAOFormData>({
     daoType: '',
@@ -64,7 +87,15 @@ const CreateDAO: React.FC = () => {
     votingPeriod: '7',
     executionDelay: '2',
     treasuryAddress: '',
-    googleCalendarLink: ''
+    googleCalendarLink: '',
+    // Governance fields
+    governanceIntro: '',
+    governanceImage: null,
+    tokenContractType: 'ERC20',
+    tokenNetwork: 'PulseChain',
+    tokenContractAddress: '',
+    snapshotUrl: '',
+    administrators: []
   });
 
   const daoTypes = [
@@ -93,6 +124,20 @@ const CreateDAO: React.FC = () => {
     { number: 4, title: 'Governance', description: 'Set voting parameters' },
     { number: 5, title: 'Calendar', description: 'Track DAO activities' }
   ];
+
+  // Initialize administrators with treasury address when it's set
+  React.useEffect(() => {
+    if (formData.treasuryAddress && formData.administrators.length === 0) {
+      setFormData(prev => ({
+        ...prev,
+        administrators: [{
+          address: formData.treasuryAddress,
+          identity: 'Creator',
+          addedTime: new Date().toISOString().slice(0, 16).replace('T', ' ')
+        }]
+      }));
+    }
+  }, [formData.treasuryAddress]);
 
   const handleNext = () => {
     if (currentStep < steps.length) {
@@ -157,6 +202,26 @@ const CreateDAO: React.FC = () => {
     }
   };
 
+  const handleGovernanceImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml'];
+      if (!validTypes.includes(file.type)) {
+        alert('Please upload a valid image file (JPG, PNG, GIF, SVG)');
+        return;
+      }
+      
+      // Validate file size (100MB)
+      if (file.size > 100 * 1024 * 1024) {
+        alert('File size must be less than 100MB');
+        return;
+      }
+      
+      updateFormData('governanceImage', file);
+    }
+  };
+
   const addTag = () => {
     if (newTag.trim() && formData.tags.length < 5 && !formData.tags.includes(newTag.trim())) {
       setFormData(prev => ({
@@ -195,6 +260,31 @@ const CreateDAO: React.FC = () => {
         ...prev.social,
         custom: prev.social.custom.filter((_, i) => i !== index)
       }
+    }));
+  };
+
+  const addAdministrator = () => {
+    if (newAdministrator.address.trim()) {
+      const newAdmin: Administrator = {
+        address: newAdministrator.address.trim(),
+        identity: newAdministrator.identity,
+        addedTime: new Date().toISOString().slice(0, 16).replace('T', ' ')
+      };
+      
+      setFormData(prev => ({
+        ...prev,
+        administrators: [...prev.administrators, newAdmin]
+      }));
+      
+      setNewAdministrator({ address: '', identity: 'Administrator' });
+      setShowAddAdministrator(false);
+    }
+  };
+
+  const removeAdministrator = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      administrators: prev.administrators.filter((_, i) => i !== index)
     }));
   };
 
@@ -725,80 +815,219 @@ const CreateDAO: React.FC = () => {
 
       case 4:
         return (
-          <div className="space-y-6">
-            {/* Snapshot Setup Section */}
-            <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20">
-              <h3 className="text-lg font-semibold text-white mb-3">Voting Platform Setup</h3>
-              <p className="text-gray-300 text-sm mb-4">
-                Use Snapshot for gasless off-chain voting with your governance token
-              </p>
-              <div className="flex items-center space-x-4">
-                <a
-                  href="https://snapshot.org/#/setup"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
-                >
-                  <span>Setup Snapshot Space</span>
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-                <div className="flex-1">
-                  <p className="text-gray-400 text-sm">
-                    Create your Snapshot space for community voting and proposals
-                  </p>
+          <div className="space-y-8">
+            {/* Header Banner */}
+            <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-500/10 to-pink-500/10 border border-blue-500/20">
+              <h3 className="text-lg font-semibold text-white mb-2">Want to Aggregate or Create Governance on daobase.ai?</h3>
+            </div>
+
+            {/* 1. Introduction to Governance Members */}
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-4">Introduction to Governance Members</h3>
+              <div className="space-y-4">
+                <textarea
+                  value={formData.governanceIntro}
+                  onChange={(e) => updateFormData('governanceIntro', e.target.value)}
+                  rows={8}
+                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all resize-none"
+                  placeholder="For example, our XX DAO primarily uses the Snapshot platform for proposal submissions.
+
+Proposal Process:
+Users share their ideas on Discord and the forum, after which admins create Snapshot proposals for voting.
+
+Governance Model:
+XX is our governance token, and voting power is primarily determined by the XX strategy.
+
+Core Contributors:
+Our core contributors also serve as multisig wallet members, namely AAA, BBB, CCC, and DDD."
+                />
+                <p className="text-sm text-gray-400 italic">
+                  Uploading profiles or images helps provide a clearer understanding of the governance framework.
+                </p>
+                
+                {/* Image Upload */}
+                <div className="mt-4">
+                  <div className="w-full h-32 rounded-lg bg-white/5 border-2 border-dashed border-white/20 flex flex-col items-center justify-center overflow-hidden">
+                    {formData.governanceImage ? (
+                      <img
+                        src={URL.createObjectURL(formData.governanceImage)}
+                        alt="Governance"
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-400 text-center">
+                          File types Supported:<br />
+                          JPG, PNG, GIF, SVG Max size: 100 M
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    id="governance-image-upload"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/svg+xml"
+                    onChange={handleGovernanceImageUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="governance-image-upload"
+                    className="mt-2 inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium cursor-pointer transition-colors"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>Upload Image</span>
+                  </label>
                 </div>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Governance Threshold (%)
-                </label>
-                <input
-                  type="number"
-                  value={formData.governanceThreshold}
-                  onChange={(e) => updateFormData('governanceThreshold', e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                  min="1"
-                  max="100"
-                />
-                <p className="text-sm text-gray-400 mt-2">
-                  Minimum % of tokens needed to pass proposals
-                </p>
+            {/* 2. Governance Token Contract */}
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-4">Governance Token Contract:</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="relative">
+                  <select
+                    value={formData.tokenContractType}
+                    onChange={(e) => updateFormData('tokenContractType', e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none"
+                  >
+                    <option value="NFT">NFT</option>
+                    <option value="ERC20">ERC20</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                </div>
+                
+                <div className="relative">
+                  <select
+                    value={formData.tokenNetwork}
+                    onChange={(e) => updateFormData('tokenNetwork', e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none"
+                  >
+                    <option value="Ethereum">Ethereum</option>
+                    <option value="Polygon">Polygon</option>
+                    <option value="PulseChain">PulseChain</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={formData.tokenContractAddress}
+                    onChange={(e) => updateFormData('tokenContractAddress', e.target.value)}
+                    className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                    placeholder="address"
+                  />
+                  <button className="px-4 py-3 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all">
+                    + Add
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Voting Period (days)
-                </label>
-                <input
-                  type="number"
-                  value={formData.votingPeriod}
-                  onChange={(e) => updateFormData('votingPeriod', e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                  min="1"
-                  max="30"
-                />
-                <p className="text-sm text-gray-400 mt-2">
-                  How long members have to vote on proposals
+            </div>
+
+            {/* 3. Set Up Voting Page */}
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-4">Set Up Voting Page:</h3>
+              <p className="text-gray-300 mb-4">Already have a voting page? Share your link down below.</p>
+              
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <div className="relative flex-1">
+                    <select
+                      value="Snapshot"
+                      className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none"
+                    >
+                      <option value="Snapshot">Snapshot</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  </div>
+                  <input
+                    type="url"
+                    value={formData.snapshotUrl}
+                    onChange={(e) => updateFormData('snapshotUrl', e.target.value)}
+                    className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                    placeholder="https://snapshot.org/#/example"
+                  />
+                  <button className="px-4 py-3 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all">
+                    + Add
+                  </button>
+                </div>
+                
+                <p className="text-sm text-gray-400 italic">
+                  Note: Supported protocols: Snapshot, Aragon, XDAO, Colony, Tally, Compound, OpenZeppelin, Nouns, PartyDAO, Homebase, and Moloch.
+                </p>
+                
+                <div className="space-y-2">
+                  <p className="text-white">Don't have a voting page yet? Click below to create one:</p>
+                  <a
+                    href="https://v1.snapshot.box/#/setup?step=0"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all"
+                  >
+                    <span>NEW Create Voting Right Now</span>
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+                
+                <p className="text-sm text-gray-400">
+                  Tip: DAOBase offers full support for creating proposals, voting, and delegation, integrated with Snapshot's backend.
                 </p>
               </div>
             </div>
+
+            {/* 4. DAO Profile Administrator */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Execution Delay (days)
-              </label>
-              <input
-                type="number"
-                value={formData.executionDelay}
-                onChange={(e) => updateFormData('executionDelay', e.target.value)}
-                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                min="0"
-                max="14"
-              />
-              <p className="text-sm text-gray-400 mt-2">
-                Delay between proposal approval and execution
+              <h3 className="text-xl font-semibold text-white mb-4">DAO Profile Administrator</h3>
+              <p className="text-gray-300 mb-4">
+                You can add operational roles or additional administrators to help manage your DAO page on daobase.ai. Simply fill in the information below!
               </p>
+              
+              <div className="space-y-4">
+                {/* Administrator Table */}
+                <div className="bg-white/5 rounded-lg border border-white/10">
+                  <div className="grid grid-cols-4 gap-4 p-4 border-b border-white/10 text-sm font-medium text-gray-400">
+                    <div>Added Time</div>
+                    <div>Address</div>
+                    <div>Identity</div>
+                    <div>Operations</div>
+                  </div>
+                  
+                  {formData.administrators.map((admin, index) => (
+                    <div key={index} className="grid grid-cols-4 gap-4 p-4 border-b border-white/10 last:border-b-0">
+                      <div className="text-white text-sm">{admin.addedTime}</div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-white text-sm font-mono">{admin.address.slice(0, 10)}...{admin.address.slice(-8)}</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(admin.address)}
+                          className="text-gray-400 hover:text-white"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="text-white text-sm">{admin.identity}</div>
+                      <div>
+                        {admin.identity !== 'Creator' && (
+                          <button
+                            onClick={() => removeAdministrator(index)}
+                            className="text-red-400 hover:text-red-300 text-sm"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <button
+                  onClick={() => setShowAddAdministrator(true)}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all"
+                >
+                  + Add
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -1090,35 +1319,128 @@ const CreateDAO: React.FC = () => {
             className="flex items-center space-x-2 px-6 py-3 rounded-lg border border-white/20 text-white hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             <ChevronLeft className="h-4 w-4" />
-            <span>Previous</span>
+            <span>Back</span>
           </button>
 
-          {currentStep === steps.length ? (
-            <button
-              onClick={handleDeploy}
-              disabled={!isStepValid(currentStep) || isDeploying}
-              className="flex items-center space-x-2 px-8 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {isDeploying ? (
-                <>
-                  <Loader className="h-4 w-4 animate-spin" />
-                  <span>Deploying...</span>
-                </>
-              ) : (
-                <span>Deploy DAO</span>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={handleNext}
-              disabled={!isStepValid(currentStep)}
-              className="flex items-center space-x-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              <span>Next</span>
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          )}
+          <div className="flex items-center space-x-4">
+            {currentStep === 4 && (
+              <button
+                onClick={handleNext}
+                className="px-6 py-3 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium transition-all"
+              >
+                Skip
+              </button>
+            )}
+            
+            {currentStep === steps.length ? (
+              <button
+                onClick={handleDeploy}
+                disabled={!isStepValid(currentStep) || isDeploying}
+                className="flex items-center space-x-2 px-8 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {isDeploying ? (
+                  <>
+                    <Loader className="h-4 w-4 animate-spin" />
+                    <span>Deploying...</span>
+                  </>
+                ) : (
+                  <span>Deploy DAO</span>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleNext}
+                disabled={!isStepValid(currentStep)}
+                className="flex items-center space-x-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <span>NEXT</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Add Administrator Modal */}
+        {showAddAdministrator && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-slate-900 rounded-2xl border border-white/10 p-8 max-w-md w-full"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">DAO Profile Administrator</h2>
+                <button
+                  onClick={() => setShowAddAdministrator(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-4">Add DAO member</h3>
+                  <input
+                    type="text"
+                    value={newAdministrator.address}
+                    onChange={(e) => setNewAdministrator(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                    placeholder="Address"
+                  />
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-4">Identity</h3>
+                  <div className="space-y-3">
+                    {[
+                      { 
+                        value: 'Administrator', 
+                        label: 'Administrator', 
+                        description: 'Any information in DAO can be adjusted, except for receiving PASS income',
+                        color: 'from-pink-500 to-purple-500'
+                      },
+                      { 
+                        value: 'Editor', 
+                        label: 'Editor', 
+                        description: 'the basic information of DAO and treasury information can be edited but not the member',
+                        color: 'from-blue-500 to-purple-500'
+                      }
+                    ].map((role) => (
+                      <div
+                        key={role.value}
+                        onClick={() => setNewAdministrator(prev => ({ ...prev, identity: role.value as any }))}
+                        className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                          newAdministrator.identity === role.value
+                            ? `bg-gradient-to-r ${role.color} border-transparent`
+                            : 'bg-white/5 border-white/20 hover:border-white/40'
+                        }`}
+                      >
+                        <h4 className="text-white font-medium mb-2">{role.label}</h4>
+                        <p className="text-gray-300 text-sm">{role.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end space-x-4 mt-8">
+                <button
+                  onClick={() => setShowAddAdministrator(false)}
+                  className="px-6 py-3 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium transition-colors"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={addAdministrator}
+                  className="px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium transition-all"
+                >
+                  SAVE
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </div>
   );
