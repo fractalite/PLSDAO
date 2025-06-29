@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Check, AlertCircle, Loader, ExternalLink, Upload, X, Plus, Globe, MessageCircle, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, AlertCircle, Loader, ExternalLink, Upload, X, Plus, Globe, MessageCircle, Send, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import { deployDAO, validateDAOParams, type DAODeploymentParams, type DeploymentResult } from '../utils/contracts';
@@ -28,6 +28,7 @@ interface DAOFormData {
   votingPeriod: string;
   executionDelay: string;
   treasuryAddress: string;
+  googleCalendarLink: string;
 }
 
 const CreateDAO: React.FC = () => {
@@ -62,7 +63,8 @@ const CreateDAO: React.FC = () => {
     governanceThreshold: '4',
     votingPeriod: '7',
     executionDelay: '2',
-    treasuryAddress: ''
+    treasuryAddress: '',
+    googleCalendarLink: ''
   });
 
   const daoTypes = [
@@ -85,14 +87,11 @@ const CreateDAO: React.FC = () => {
   ];
 
   const steps = [
-    { number: 1, title: 'DAO Type', description: 'Select your DAO category' },
-    { number: 2, title: 'Structure', description: 'Define DAO relationships' },
-    { number: 3, title: 'Basic Info', description: 'Name and describe your DAO' },
-    { number: 4, title: 'Social Links', description: 'Connect your community' },
-    { number: 5, title: 'Token', description: 'Configure your governance token' },
-    { number: 6, title: 'Governance', description: 'Set voting and\nparameters' },
-    { number: 7, title: 'Treasury Setup', description: 'Configure treasury management' },
-    { number: 8, title: 'Review & Deploy', description: 'Review and deploy your DAO' }
+    { number: 1, title: 'Basic Info', description: 'DAO details and social links' },
+    { number: 2, title: 'Token', description: 'Configure governance token' },
+    { number: 3, title: 'Treasury', description: 'Setup treasury management' },
+    { number: 4, title: 'Governance', description: 'Set voting parameters' },
+    { number: 5, title: 'Calendar', description: 'Track DAO activities' }
   ];
 
   const handleNext = () => {
@@ -202,20 +201,19 @@ const CreateDAO: React.FC = () => {
   const isStepValid = (step: number): boolean => {
     switch (step) {
       case 1:
-        return formData.daoType !== '';
+        return formData.daoType !== '' && 
+               formData.structure !== '' && 
+               (formData.structure !== 'sub-dao' || formData.parentDAO !== '') &&
+               formData.name.trim() !== '' && 
+               formData.description.trim() !== '' && 
+               formData.description.trim().length >= 80;
       case 2:
-        return formData.structure !== '' && (formData.structure !== 'sub-dao' || formData.parentDAO !== '');
-      case 3:
-        return formData.name.trim() !== '' && formData.description.trim() !== '' && formData.description.trim().length >= 80;
-      case 4:
-        return true; // Social links are optional
-      case 5:
         return formData.tokenName.trim() !== '' && formData.tokenSymbol.trim() !== '';
-      case 6:
-        return true; // Default values are valid
-      case 7:
+      case 3:
         return true; // Treasury address is optional
-      case 8:
+      case 4:
+        return true; // Default values are valid
+      case 5:
         return account !== null && isOnPulseChain;
       default:
         return false;
@@ -281,6 +279,7 @@ const CreateDAO: React.FC = () => {
       case 1:
         return (
           <div className="space-y-6">
+            {/* DAO Type */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 DAO Type *
@@ -303,12 +302,8 @@ const CreateDAO: React.FC = () => {
                 </p>
               )}
             </div>
-          </div>
-        );
 
-      case 2:
-        return (
-          <div className="space-y-6">
+            {/* DAO Structure */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 DAO Structure *
@@ -343,12 +338,7 @@ const CreateDAO: React.FC = () => {
                 </select>
               </div>
             )}
-          </div>
-        );
 
-      case 3:
-        return (
-          <div className="space-y-6">
             {/* Logo Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -388,6 +378,7 @@ const CreateDAO: React.FC = () => {
               </div>
             </div>
 
+            {/* DAO Name */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 DAO Name *
@@ -401,6 +392,7 @@ const CreateDAO: React.FC = () => {
               />
             </div>
             
+            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Description * (minimum 80 characters)
@@ -468,151 +460,150 @@ const CreateDAO: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
-        );
 
-      case 4:
-        return (
-          <div className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Website URL
-                </label>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="url"
-                    value={formData.social.website}
-                    onChange={(e) => updateSocialData('website', e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                    placeholder="https://your-dao.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Twitter/X Handle
-                </label>
-                <div className="relative">
-                  <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={formData.social.twitter}
-                    onChange={(e) => updateSocialData('twitter', e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                    placeholder="@yourdao"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Discord Invite
-                </label>
-                <div className="relative">
-                  <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="url"
-                    value={formData.social.discord}
-                    onChange={(e) => updateSocialData('discord', e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                    placeholder="https://discord.gg/yourdao"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Telegram Group
-                </label>
-                <div className="relative">
-                  <Send className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="url"
-                    value={formData.social.telegram}
-                    onChange={(e) => updateSocialData('telegram', e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                    placeholder="https://t.me/yourdao"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Custom Social Links */}
+            {/* Social Links */}
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-medium text-gray-300">
-                  Custom Social Links
-                </label>
-                <button
-                  onClick={() => setShowCustomSocialForm(true)}
-                  className="flex items-center space-x-2 px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                  <span>Add Custom</span>
-                </button>
-              </div>
-
-              {formData.social.custom.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  {formData.social.custom.map((social, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                      <div>
-                        <span className="text-white font-medium">{social.name}</span>
-                        <span className="text-gray-400 text-sm ml-2">{social.url}</span>
-                      </div>
-                      <button
-                        onClick={() => removeCustomSocial(index)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {showCustomSocialForm && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      value={newCustomSocial.name}
-                      onChange={(e) => setNewCustomSocial(prev => ({ ...prev, name: e.target.value }))}
-                      className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                      placeholder="Platform name"
-                    />
+              <h3 className="text-lg font-semibold text-white mb-4">Social Links</h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Website URL
+                  </label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       type="url"
-                      value={newCustomSocial.url}
-                      onChange={(e) => setNewCustomSocial(prev => ({ ...prev, url: e.target.value }))}
-                      className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                      placeholder="https://..."
+                      value={formData.social.website}
+                      onChange={(e) => updateSocialData('website', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="https://your-dao.com"
                     />
                   </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={addCustomSocial}
-                      className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => setShowCustomSocialForm(false)}
-                      className="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white text-sm transition-colors"
-                    >
-                      Cancel
-                    </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Twitter/X Handle
+                  </label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={formData.social.twitter}
+                      onChange={(e) => updateSocialData('twitter', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="@yourdao"
+                    />
                   </div>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Discord Invite
+                  </label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="url"
+                      value={formData.social.discord}
+                      onChange={(e) => updateSocialData('discord', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="https://discord.gg/yourdao"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Telegram Group
+                  </label>
+                  <div className="relative">
+                    <Send className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="url"
+                      value={formData.social.telegram}
+                      onChange={(e) => updateSocialData('telegram', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="https://t.me/yourdao"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Social Links */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Custom Social Links
+                  </label>
+                  <button
+                    onClick={() => setShowCustomSocialForm(true)}
+                    className="flex items-center space-x-2 px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>Add Custom</span>
+                  </button>
+                </div>
+
+                {formData.social.custom.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {formData.social.custom.map((social, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                        <div>
+                          <span className="text-white font-medium">{social.name}</span>
+                          <span className="text-gray-400 text-sm ml-2">{social.url}</span>
+                        </div>
+                        <button
+                          onClick={() => removeCustomSocial(index)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showCustomSocialForm && (
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={newCustomSocial.name}
+                        onChange={(e) => setNewCustomSocial(prev => ({ ...prev, name: e.target.value }))}
+                        className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                        placeholder="Platform name"
+                      />
+                      <input
+                        type="url"
+                        value={newCustomSocial.url}
+                        onChange={(e) => setNewCustomSocial(prev => ({ ...prev, url: e.target.value }))}
+                        className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={addCustomSocial}
+                        className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => setShowCustomSocialForm(false)}
+                        className="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white text-sm transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
 
-      case 5:
+      case 2:
         return (
           <div className="space-y-6">
             {/* Token Logo Upload */}
@@ -699,7 +690,40 @@ const CreateDAO: React.FC = () => {
           </div>
         );
 
-      case 6:
+      case 3:
+        return (
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Treasury Address (optional)
+              </label>
+              <input
+                type="text"
+                value={formData.treasuryAddress}
+                onChange={(e) => updateFormData('treasuryAddress', e.target.value)}
+                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                placeholder="0x..."
+              />
+              <p className="text-sm text-gray-400 mt-2">
+                Leave empty to create a new treasury contract, or provide an existing address
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="text-blue-300 font-medium mb-1">Treasury Management</h4>
+                  <p className="text-blue-200 text-sm">
+                    The treasury will be controlled by the DAO governance. Members can propose 
+                    and vote on how to spend treasury funds through the governance process.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 4:
         return (
           <div className="space-y-6">
             {/* Snapshot Setup Section */}
@@ -779,42 +803,93 @@ const CreateDAO: React.FC = () => {
           </div>
         );
 
-      case 7:
+      case 5:
         return (
           <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Treasury Address (optional)
-              </label>
-              <input
-                type="text"
-                value={formData.treasuryAddress}
-                onChange={(e) => updateFormData('treasuryAddress', e.target.value)}
-                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                placeholder="0x..."
-              />
-              <p className="text-sm text-gray-400 mt-2">
-                Leave empty to create a new treasury contract, or provide an existing address
+            {/* Calendar Header */}
+            <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-500/10 to-pink-500/10 border border-blue-500/20">
+              <div className="flex items-center space-x-3 mb-4">
+                <Calendar className="h-6 w-6 text-blue-400" />
+                <h3 className="text-lg font-semibold text-white">Calendar Integration</h3>
+              </div>
+              <p className="text-gray-300 text-sm mb-4">
+                In the "Calendar" section, we track DAO activities, keeping users informed for seamless participation.
+              </p>
+              <p className="text-gray-300 text-sm">
+                Currently, we aggregate <span className="text-blue-300 font-medium">DAO Google Calendar schedules</span>, <span className="text-purple-300 font-medium">proposal alerts</span>, and <span className="text-pink-300 font-medium">Twitter Space events</span>. The latter two are automated, and for Google Calendar, share the public link below for integration.
               </p>
             </div>
-            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <div className="flex items-start space-x-3">
-                <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h4 className="text-blue-300 font-medium mb-1">Treasury Management</h4>
-                  <p className="text-blue-200 text-sm">
-                    The treasury will be controlled by the DAO governance. Members can propose 
-                    and vote on how to spend treasury funds through the governance process.
-                  </p>
+
+            {/* Google Calendar Link */}
+            <div>
+              <div className="flex items-center space-x-2 mb-3">
+                <label className="block text-lg font-medium text-white">
+                  Google Calendar Link
+                </label>
+                <span className="text-sm text-pink-400 font-medium">
+                  (You need to set the calendar permissions to public.)
+                </span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="url"
+                  value={formData.googleCalendarLink}
+                  onChange={(e) => updateFormData('googleCalendarLink', e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                  placeholder="https://calendar.google.com/calendar/embed?src=example"
+                />
+                <button
+                  onClick={() => {
+                    if (formData.googleCalendarLink.trim()) {
+                      alert('Calendar link added successfully!');
+                    } else {
+                      alert('Please enter a valid Google Calendar link');
+                    }
+                  }}
+                  className="px-6 py-3 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all"
+                >
+                  + Add
+                </button>
+              </div>
+              <p className="text-sm text-gray-400 mt-2">
+                Share your public Google Calendar link to integrate DAO events and meetings
+              </p>
+            </div>
+
+            {/* Features List */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Calendar className="h-5 w-5 text-blue-400" />
+                  <h4 className="text-blue-300 font-medium">Google Calendar</h4>
                 </div>
+                <p className="text-blue-200 text-sm">
+                  Sync your DAO's meeting schedule and important events
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="flex items-center space-x-2 mb-2">
+                  <AlertCircle className="h-5 w-5 text-purple-400" />
+                  <h4 className="text-purple-300 font-medium">Proposal Alerts</h4>
+                </div>
+                <p className="text-purple-200 text-sm">
+                  Automated notifications for new proposals and voting deadlines
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-pink-500/10 border border-pink-500/20">
+                <div className="flex items-center space-x-2 mb-2">
+                  <MessageCircle className="h-5 w-5 text-pink-400" />
+                  <h4 className="text-pink-300 font-medium">Twitter Spaces</h4>
+                </div>
+                <p className="text-pink-200 text-sm">
+                  Automatic tracking of DAO-related Twitter Space events
+                </p>
               </div>
             </div>
-          </div>
-        );
 
-      case 8:
-        return (
-          <div className="space-y-6">
+            {/* Review Section */}
             <div className="p-6 rounded-lg bg-white/5 border border-white/10">
               <h3 className="text-lg font-semibold text-white mb-4">Review Your DAO</h3>
               <div className="space-y-3 text-sm">
