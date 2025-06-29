@@ -7,7 +7,7 @@ const Footer: React.FC = () => {
   const links = [
     { name: 'About', href: '/about', icon: Info },
     { name: 'Documentation', href: '/docs', icon: FileText },
-    { name: 'GitHub', href: 'https://github.com/fractalite', icon: Github, external: true },
+    { name: 'GitHub', href: 'https://github.com/fractalite/PLSDAO', icon: Github, external: true },
     { name: 'Twitter', href: 'https://x.com/PLSDAO', icon: Twitter, external: true }
   ];
 
