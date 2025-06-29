@@ -22,7 +22,10 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  Copy
+  Copy,
+  Calendar,
+  CalendarDays,
+  Globe
 } from 'lucide-react';
 
 interface Proposal {
@@ -71,11 +74,21 @@ interface DAOData {
   multiSigEnabled: boolean;
   requiredSignatures: number;
   treasuryAddress: string;
+  calendarLink?: string;
+}
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  description: string;
+  date: Date;
+  type: 'proposal' | 'meeting' | 'deadline' | 'announcement';
+  status: 'upcoming' | 'live' | 'completed';
 }
 
 const DAODashboard: React.FC = () => {
   const { contractAddress } = useParams<{ contractAddress: string }>();
-  const [activeTab, setActiveTab] = useState<'overview' | 'proposals' | 'treasury' | 'create'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'proposals' | 'treasury' | 'calendar' | 'create'>('overview');
   const [treasuryTab, setTreasuryTab] = useState<'overview' | 'transactions' | 'send' | 'settings'>('overview');
   const [showCreateProposal, setShowCreateProposal] = useState(false);
   const [showSendFunds, setShowSendFunds] = useState(false);
@@ -110,7 +123,8 @@ const DAODashboard: React.FC = () => {
     votingPeriod: 7,
     multiSigEnabled: true,
     requiredSignatures: 3,
-    treasuryAddress: '0x742d35Cc6634C0532925a3b8D4C9db96'
+    treasuryAddress: '0x742d35Cc6634C0532925a3b8D4C9db96',
+    calendarLink: 'https://calendar.google.com/calendar/embed?src=example@gmail.com&ctz=UTC'
   });
 
   const [proposals] = useState<Proposal[]>([
@@ -202,6 +216,41 @@ const DAODashboard: React.FC = () => {
     }
   ]);
 
+  const [calendarEvents] = useState<CalendarEvent[]>([
+    {
+      id: '1',
+      title: 'Proposal #1 Voting Ends',
+      description: 'Fund Development of PulseChain DEX voting period ends',
+      date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      type: 'deadline',
+      status: 'upcoming'
+    },
+    {
+      id: '2',
+      title: 'Community Call',
+      description: 'Monthly community discussion and updates',
+      date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      type: 'meeting',
+      status: 'upcoming'
+    },
+    {
+      id: '3',
+      title: 'Treasury Report',
+      description: 'Quarterly treasury performance and allocation review',
+      date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      type: 'announcement',
+      status: 'upcoming'
+    },
+    {
+      id: '4',
+      title: 'Proposal #2 Voting Ends',
+      description: 'Update Governance Threshold to 5% voting period ends',
+      date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      type: 'deadline',
+      status: 'upcoming'
+    }
+  ]);
+
   const [recentActivity] = useState([
     { type: 'vote', user: '0x1234...5678', action: 'voted FOR', proposal: 'Fund Development of PulseChain DEX', time: '2 hours ago' },
     { type: 'treasury', user: 'Treasury', action: 'received', proposal: '2,500 PLS from community donation', time: '2 hours ago' },
@@ -267,6 +316,8 @@ const DAODashboard: React.FC = () => {
       case 'executed': return 'text-purple-400 bg-purple-500/20';
       case 'completed': return 'text-green-400 bg-green-500/20';
       case 'pending': return 'text-yellow-400 bg-yellow-500/20';
+      case 'upcoming': return 'text-blue-400 bg-blue-500/20';
+      case 'live': return 'text-green-400 bg-green-500/20';
       default: return 'text-gray-400 bg-gray-500/20';
     }
   };
@@ -279,7 +330,19 @@ const DAODashboard: React.FC = () => {
       case 'executed': return <CheckCircle className="h-4 w-4" />;
       case 'completed': return <CheckCircle className="h-4 w-4" />;
       case 'pending': return <Clock className="h-4 w-4" />;
+      case 'upcoming': return <Clock className="h-4 w-4" />;
+      case 'live': return <Activity className="h-4 w-4" />;
       default: return <Clock className="h-4 w-4" />;
+    }
+  };
+
+  const getEventTypeIcon = (type: string) => {
+    switch (type) {
+      case 'proposal': return <Vote className="h-4 w-4 text-purple-400" />;
+      case 'meeting': return <Users className="h-4 w-4 text-blue-400" />;
+      case 'deadline': return <Clock className="h-4 w-4 text-red-400" />;
+      case 'announcement': return <Activity className="h-4 w-4 text-green-400" />;
+      default: return <Calendar className="h-4 w-4 text-gray-400" />;
     }
   };
 
@@ -314,6 +377,17 @@ const DAODashboard: React.FC = () => {
     if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}m ago`;
     if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}h ago`;
     return `${Math.floor(diff / (24 * 60 * 60 * 1000))}d ago`;
+  };
+
+  const formatEventDate = (date: Date) => {
+    const now = new Date();
+    const diff = date.getTime() - now.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Tomorrow';
+    if (days > 0) return `In ${days} days`;
+    return date.toLocaleDateString();
   };
 
   return (
@@ -381,6 +455,7 @@ const DAODashboard: React.FC = () => {
             { id: 'overview', label: 'Overview', icon: TrendingUp },
             { id: 'proposals', label: 'Proposals', icon: Vote },
             { id: 'treasury', label: 'Treasury', icon: DollarSign },
+            { id: 'calendar', label: 'Calendar', icon: Calendar },
             { id: 'create', label: 'Create Proposal', icon: Plus }
           ].map((tab) => (
             <button
@@ -825,6 +900,154 @@ const DAODashboard: React.FC = () => {
                         <button className="w-full py-2 px-4 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors">
                           Propose Changes
                         </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'calendar' && (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">DAO Calendar</h2>
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-gray-400">
+                    Track DAO activities for seamless participation
+                  </div>
+                  {daoData.calendarLink && (
+                    <a
+                      href={daoData.calendarLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-all"
+                    >
+                      <Globe className="h-4 w-4" />
+                      <span>View Full Calendar</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Calendar Info Banner */}
+              <div className="bg-gradient-to-r from-blue-500/10 to-pink-500/10 rounded-2xl border border-blue-500/20 p-6 mb-8">
+                <div className="flex items-start space-x-3">
+                  <CalendarDays className="h-6 w-6 text-blue-400 mt-1 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-blue-300 font-semibold mb-2">DAO Activity Tracking</h3>
+                    <p className="text-blue-200 text-sm mb-3">
+                      We aggregate DAO Google Calendar schedules, proposal alerts, and community events. 
+                      The latter are automated, and for Google Calendar integration, use the public link below.
+                    </p>
+                    <p className="text-blue-200 text-sm">
+                      Currently tracking: <span className="font-medium">Proposal deadlines</span>, <span className="font-medium">Community meetings</span>, and <span className="font-medium">Treasury reports</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Upcoming Events */}
+              <div className="grid lg:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-6">Upcoming Events</h3>
+                  <div className="space-y-4">
+                    {calendarEvents
+                      .filter(event => event.status === 'upcoming')
+                      .sort((a, b) => a.date.getTime() - b.date.getTime())
+                      .map((event) => (
+                        <div key={event.id} className="p-6 rounded-2xl bg-white/5 backdrop-blur border border-white/10">
+                          <div className="flex items-start space-x-4">
+                            <div className="flex-shrink-0">
+                              {getEventTypeIcon(event.type)}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-lg font-semibold text-white">{event.title}</h4>
+                                <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}>
+                                  {getStatusIcon(event.status)}
+                                  <span className="capitalize">{event.status}</span>
+                                </div>
+                              </div>
+                              <p className="text-gray-300 text-sm mb-3">{event.description}</p>
+                              <div className="flex items-center space-x-4 text-sm">
+                                <span className="text-purple-400 font-medium">{formatEventDate(event.date)}</span>
+                                <span className="text-gray-400 capitalize">{event.type}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Calendar Integration */}
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-6">Calendar Integration</h3>
+                  
+                  {/* Google Calendar Link */}
+                  <div className="p-6 rounded-2xl bg-white/5 backdrop-blur border border-white/10 mb-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <Globe className="h-6 w-6 text-green-400" />
+                      <h4 className="text-lg font-semibold text-white">Google Calendar Link</h4>
+                    </div>
+                    <p className="text-gray-300 text-sm mb-4">
+                      Share your public Google Calendar link for community integration. 
+                      <span className="text-red-400 font-medium"> (You need to set the calendar permissions to public.)</span>
+                    </p>
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="text"
+                        value={daoData.calendarLink || ''}
+                        placeholder="https://calendar.google.com/calendar/embed?src=example"
+                        className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                        readOnly
+                      />
+                      <button className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-all">
+                        + Add
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Event Types */}
+                  <div className="p-6 rounded-2xl bg-white/5 backdrop-blur border border-white/10">
+                    <h4 className="text-lg font-semibold text-white mb-4">Event Types</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <Vote className="h-4 w-4 text-purple-400" />
+                        <span className="text-gray-300 text-sm">Proposal Deadlines</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Users className="h-4 w-4 text-blue-400" />
+                        <span className="text-gray-300 text-sm">Community Meetings</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Activity className="h-4 w-4 text-green-400" />
+                        <span className="text-gray-300 text-sm">Treasury Reports</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Clock className="h-4 w-4 text-red-400" />
+                        <span className="text-gray-300 text-sm">Important Deadlines</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Embedded Calendar */}
+              {daoData.calendarLink && (
+                <div className="mt-8">
+                  <h3 className="text-xl font-semibold text-white mb-6">Calendar View</h3>
+                  <div className="rounded-2xl bg-white/5 backdrop-blur border border-white/10 p-6">
+                    <div className="aspect-video bg-white/10 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-400">
+                          Google Calendar would be embedded here
+                        </p>
+                        <p className="text-gray-500 text-sm mt-2">
+                          Click "View Full Calendar" to open in new tab
+                        </p>
                       </div>
                     </div>
                   </div>
