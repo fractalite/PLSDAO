@@ -702,6 +702,30 @@ const CreateDAO: React.FC = () => {
       case 6:
         return (
           <div className="space-y-6">
+            {/* Snapshot Setup Section */}
+            <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20">
+              <h3 className="text-lg font-semibold text-white mb-3">Voting Platform Setup</h3>
+              <p className="text-gray-300 text-sm mb-4">
+                Use Snapshot for gasless off-chain voting with your governance token
+              </p>
+              <div className="flex items-center space-x-4">
+                <a
+                  href="https://snapshot.org/#/setup"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                >
+                  <span>Setup Snapshot Space</span>
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+                <div className="flex-1">
+                  <p className="text-gray-400 text-sm">
+                    Create your Snapshot space for community voting and proposals
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
