@@ -1,7 +1,29 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Zap, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { useWallet } from '../contexts/WalletContext';
+
+const NetworkLightningIcon: React.FC<{ className?: string }> = ({ className = "h-5 w-5" }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    {/* Lightning bolt */}
+    <path
+      d="M13 2L3 14h6l-2 8 10-12h-6l2-8z"
+      fill="currentColor"
+      fillOpacity="0.9"
+    />
+    {/* Network nodes */}
+    <circle cx="18" cy="6" r="2" fill="currentColor" fillOpacity="0.8" />
+    <circle cx="20" cy="12" r="1.5" fill="currentColor" fillOpacity="0.7" />
+    <circle cx="18" cy="18" r="1.5" fill="currentColor" fillOpacity="0.7" />
+    <circle cx="6" cy="20" r="1.5" fill="currentColor" fillOpacity="0.7" />
+    
+    {/* Connection lines */}
+    <line x1="16" y1="7" x2="13" y2="10" stroke="currentColor" strokeWidth="1" strokeOpacity="0.5" />
+    <line x1="19" y1="11" x2="16" y2="14" stroke="currentColor" strokeWidth="1" strokeOpacity="0.5" />
+    <line x1="17" y1="17" x2="14" y2="14" stroke="currentColor" strokeWidth="1" strokeOpacity="0.5" />
+    <line x1="7" y1="19" x2="10" y2="16" stroke="currentColor" strokeWidth="1" strokeOpacity="0.5" />
+  </svg>
+);
 
 const Header: React.FC = () => {
   const location = useLocation();
@@ -20,7 +42,7 @@ const Header: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 group">
             <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 group-hover:from-purple-600 group-hover:to-pink-600 transition-all duration-200">
-              <Zap className="h-5 w-5 text-white" />
+              <NetworkLightningIcon className="h-5 w-5 text-white" />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
               PLSDAO
