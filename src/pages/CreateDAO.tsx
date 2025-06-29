@@ -89,8 +89,8 @@ const CreateDAO: React.FC = () => {
     { number: 2, title: 'Structure', description: 'Define DAO relationships' },
     { number: 3, title: 'Basic Info', description: 'Name and describe your DAO' },
     { number: 4, title: 'Social Links', description: 'Connect your community' },
-    { number: 5, title: 'Governance Token', description: 'Configure your governance token' },
-    { number: 6, title: 'Governance Rules', description: 'Set voting and execution parameters' },
+    { number: 5, title: 'Governance', description: 'Configure your governance token' },
+    { number: 6, title: 'Governance', description: 'Set voting and\nexecution parameters' },
     { number: 7, title: 'Treasury Setup', description: 'Configure treasury management' },
     { number: 8, title: 'Review & Deploy', description: 'Review and deploy your DAO' }
   ];
@@ -976,7 +976,7 @@ const CreateDAO: React.FC = () => {
                   }`}>
                     {step.title}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1 hidden sm:block">
+                  <div className="text-xs text-gray-500 mt-1 hidden sm:block whitespace-pre-line">
                     {step.description}
                   </div>
                 </div>
