@@ -1,35 +1,52 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Check, AlertCircle, Loader, ExternalLink, ChevronDown, Upload, X, Copy, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, AlertCircle, Loader, ExternalLink, Upload, X, Plus, Globe, MessageCircle, Send, Calendar, Copy, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import { deployDAO, validateDAOParams, type DAODeploymentParams, type DeploymentResult } from '../utils/contracts';
 
 interface DAOFormData {
+  daoType: string;
   name: string;
   description: string;
+  logo: File | null;
+  tags: string[];
+  social: {
+    website: string;
+    twitter: string;
+    discord: string;
+    telegram: string;
+    custom: Array<{ name: string; url: string }>;
+  };
+  structure: 'standalone' | 'sub-dao' | 'parent-dao';
+  parentDAO: string;
   tokenName: string;
   tokenSymbol: string;
+  tokenLogo: File | null;
   initialSupply: string;
   governanceThreshold: string;
   votingPeriod: string;
   executionDelay: string;
   treasuryAddress: string;
+  googleCalendarLink: string;
+  // Governance specific fields
   governanceIntro: string;
   governanceImage: File | null;
-  tokenType: string;
-  network: string;
-  tokenAddress: string;
-  votingPlatform: string;
-  votingUrl: string;
+  tokenContractType: 'NFT' | 'ERC20';
+  tokenNetwork: 'Ethereum' | 'Polygon' | 'PulseChain';
+  tokenContractAddress: string;
+  snapshotUrl: string;
   administrators: Array<{
-    id: string;
     address: string;
-    identity: 'Administrator' | 'Editor';
-    addedTime: Date;
-    isCreator?: boolean;
+    identity: 'Creator' | 'Administrator' | 'Editor';
+    addedTime: string;
   }>;
-  calendarUrl: string;
+}
+
+interface Administrator {
+  address: string;
+  identity: 'Creator' | 'Administrator' | 'Editor';
+  addedTime: string;
 }
 
 const CreateDAO: React.FC = () => {
@@ -38,38 +55,89 @@ const CreateDAO: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentResult, setDeploymentResult] = useState<DeploymentResult | null>(null);
-  const [showAddAdmin, setShowAddAdmin] = useState(false);
-  const [newAdminAddress, setNewAdminAddress] = useState('');
-  const [newAdminIdentity, setNewAdminIdentity] = useState<'Administrator' | 'Editor'>('Administrator');
+  const [newTag, setNewTag] = useState('');
+  const [newCustomSocial, setNewCustomSocial] = useState({ name: '', url: '' });
+  const [showCustomSocialForm, setShowCustomSocialForm] = useState(false);
+  const [showAddAdministrator, setShowAddAdministrator] = useState(false);
+  const [newAdministrator, setNewAdministrator] = useState({
+    address: '',
+    identity: 'Administrator' as 'Creator' | 'Administrator' | 'Editor'
+  });
   
   const [formData, setFormData] = useState<DAOFormData>({
+    daoType: '',
     name: '',
     description: '',
+    logo: null,
+    tags: [],
+    social: {
+      website: '',
+      twitter: '',
+      discord: '',
+      telegram: '',
+      custom: []
+    },
+    structure: 'standalone',
+    parentDAO: '',
     tokenName: '',
     tokenSymbol: '',
+    tokenLogo: null,
     initialSupply: '1000000',
     governanceThreshold: '4',
     votingPeriod: '7',
     executionDelay: '2',
     treasuryAddress: '',
+    googleCalendarLink: '',
+    // Governance fields
     governanceIntro: '',
     governanceImage: null,
-    tokenType: 'ERC20',
-    network: 'PulseChain',
-    tokenAddress: '',
-    votingPlatform: 'Snapshot',
-    votingUrl: '',
-    administrators: [],
-    calendarUrl: ''
+    tokenContractType: 'ERC20',
+    tokenNetwork: 'PulseChain',
+    tokenContractAddress: '',
+    snapshotUrl: '',
+    administrators: []
   });
 
+  const daoTypes = [
+    { value: 'community', label: 'Community DAO', description: 'Neighborhood groups, interest communities, social organizations' },
+    { value: 'project', label: 'Project DAO', description: 'Specific initiatives, product development, collaborative projects' },
+    { value: 'investment', label: 'Investment DAO', description: 'Funding pools, treasury management, investment decisions' },
+    { value: 'service', label: 'Service DAO', description: 'Consulting, professional services, freelancer collectives' },
+    { value: 'creator', label: 'Creator DAO', description: 'Artists, content creators, creative collaboratives' },
+    { value: 'protocol', label: 'Protocol DAO', description: 'DeFi protocols, infrastructure, blockchain governance' },
+    { value: 'grant', label: 'Grant DAO', description: 'Funding distribution, grant programs, ecosystem support' }
+  ];
+
+  const existingDAOs = [
+    { value: 'plsdao-treasury', label: 'PLSDAO Treasury' },
+    { value: 'validators-union', label: 'Validators Union' },
+    { value: 'builder-collective', label: 'Builder Collective' },
+    { value: 'community-grants', label: 'Community Grants' },
+    { value: 'pulsegame-guild', label: 'PulseGame Guild' },
+    { value: 'social-impact-dao', label: 'Social Impact DAO' }
+  ];
+
   const steps = [
-    { number: 1, title: 'Basic Info', description: 'Name and describe your DAO' },
-    { number: 2, title: 'Token', description: 'Configure your governance token' },
-    { number: 3, title: 'Treasury', description: 'Configure treasury management' },
-    { number: 4, title: 'Governance', description: 'Set voting and parameters' },
+    { number: 1, title: 'Basic Info', description: 'DAO details and social links' },
+    { number: 2, title: 'Token', description: 'Configure governance token' },
+    { number: 3, title: 'Treasury', description: 'Setup treasury management' },
+    { number: 4, title: 'Governance', description: 'Set voting parameters' },
     { number: 5, title: 'Calendar', description: 'Track DAO activities' }
   ];
+
+  // Initialize administrators with treasury address when it's set
+  React.useEffect(() => {
+    if (formData.treasuryAddress && formData.administrators.length === 0) {
+      setFormData(prev => ({
+        ...prev,
+        administrators: [{
+          address: formData.treasuryAddress,
+          identity: 'Creator',
+          addedTime: new Date().toISOString().slice(0, 16).replace('T', ' ')
+        }]
+      }));
+    }
+  }, [formData.treasuryAddress]);
 
   const handleNext = () => {
     if (currentStep < steps.length) {
@@ -83,65 +151,152 @@ const CreateDAO: React.FC = () => {
     }
   };
 
-  const updateFormData = (field: keyof DAOFormData, value: string | File | null) => {
-    setFormData(prev => {
-      const updated = { ...prev, [field]: value };
-      
-      // Auto-populate administrators when treasury address is set
-      if (field === 'treasuryAddress' && value && typeof value === 'string') {
-        const existingCreator = updated.administrators.find(admin => admin.isCreator);
-        if (!existingCreator) {
-          updated.administrators = [{
-            id: '1',
-            address: value,
-            identity: 'Administrator' as const,
-            addedTime: new Date(),
-            isCreator: true
-          }];
-        }
+  const updateFormData = (field: keyof DAOFormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateSocialData = (field: keyof DAOFormData['social'], value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      social: { ...prev.social, [field]: value }
+    }));
+  };
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml'];
+      if (!validTypes.includes(file.type)) {
+        alert('Please upload a valid image file (JPG, PNG, GIF, SVG)');
+        return;
       }
       
-      return updated;
-    });
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size must be less than 10MB');
+        return;
+      }
+      
+      updateFormData('logo', file);
+    }
   };
 
-  const handleAddAdmin = () => {
-    if (!newAdminAddress.trim()) return;
-    
-    const newAdmin = {
-      id: Date.now().toString(),
-      address: newAdminAddress,
-      identity: newAdminIdentity,
-      addedTime: new Date(),
-      isCreator: false
-    };
-    
+  const handleTokenLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml'];
+      if (!validTypes.includes(file.type)) {
+        alert('Please upload a valid image file (JPG, PNG, GIF, SVG)');
+        return;
+      }
+      
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        return;
+      }
+      
+      updateFormData('tokenLogo', file);
+    }
+  };
+
+  const handleGovernanceImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml'];
+      if (!validTypes.includes(file.type)) {
+        alert('Please upload a valid image file (JPG, PNG, GIF, SVG)');
+        return;
+      }
+      
+      // Validate file size (100MB)
+      if (file.size > 100 * 1024 * 1024) {
+        alert('File size must be less than 100MB');
+        return;
+      }
+      
+      updateFormData('governanceImage', file);
+    }
+  };
+
+  const addTag = () => {
+    if (newTag.trim() && formData.tags.length < 5 && !formData.tags.includes(newTag.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, newTag.trim()]
+      }));
+      setNewTag('');
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
-      administrators: [...prev.administrators, newAdmin]
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
-    
-    setNewAdminAddress('');
-    setNewAdminIdentity('Administrator');
-    setShowAddAdmin(false);
   };
 
-  const handleRemoveAdmin = (id: string) => {
+  const addCustomSocial = () => {
+    if (newCustomSocial.name.trim() && newCustomSocial.url.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        social: {
+          ...prev.social,
+          custom: [...prev.social.custom, { ...newCustomSocial }]
+        }
+      }));
+      setNewCustomSocial({ name: '', url: '' });
+      setShowCustomSocialForm(false);
+    }
+  };
+
+  const removeCustomSocial = (index: number) => {
     setFormData(prev => ({
       ...prev,
-      administrators: prev.administrators.filter(admin => admin.id !== id)
+      social: {
+        ...prev.social,
+        custom: prev.social.custom.filter((_, i) => i !== index)
+      }
     }));
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert('Copied to clipboard!');
+  const addAdministrator = () => {
+    if (newAdministrator.address.trim()) {
+      const newAdmin: Administrator = {
+        address: newAdministrator.address.trim(),
+        identity: newAdministrator.identity,
+        addedTime: new Date().toISOString().slice(0, 16).replace('T', ' ')
+      };
+      
+      setFormData(prev => ({
+        ...prev,
+        administrators: [...prev.administrators, newAdmin]
+      }));
+      
+      setNewAdministrator({ address: '', identity: 'Administrator' });
+      setShowAddAdministrator(false);
+    }
+  };
+
+  const removeAdministrator = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      administrators: prev.administrators.filter((_, i) => i !== index)
+    }));
   };
 
   const isStepValid = (step: number): boolean => {
     switch (step) {
       case 1:
-        return formData.name.trim() !== '' && formData.description.trim() !== '';
+        return formData.daoType !== '' && 
+               formData.structure !== '' && 
+               (formData.structure !== 'sub-dao' || formData.parentDAO !== '') &&
+               formData.name.trim() !== '' && 
+               formData.description.trim() !== '' && 
+               formData.description.trim().length >= 80;
       case 2:
         return formData.tokenName.trim() !== '' && formData.tokenSymbol.trim() !== '';
       case 3:
@@ -214,6 +369,106 @@ const CreateDAO: React.FC = () => {
       case 1:
         return (
           <div className="space-y-6">
+            {/* DAO Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                DAO Type *
+              </label>
+              <select
+                value={formData.daoType}
+                onChange={(e) => updateFormData('daoType', e.target.value)}
+                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+              >
+                <option value="">Select DAO Type</option>
+                {daoTypes.map((type) => (
+                  <option key={type.value} value={type.value} className="bg-slate-800">
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              {formData.daoType && (
+                <p className="text-sm text-gray-400 mt-2">
+                  {daoTypes.find(type => type.value === formData.daoType)?.description}
+                </p>
+              )}
+            </div>
+
+            {/* DAO Structure */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                DAO Structure *
+              </label>
+              <select
+                value={formData.structure}
+                onChange={(e) => updateFormData('structure', e.target.value)}
+                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+              >
+                <option value="standalone">Standalone DAO</option>
+                <option value="sub-dao">Sub-DAO</option>
+                <option value="parent-dao">Parent DAO (will have Sub-DAOs)</option>
+              </select>
+            </div>
+
+            {formData.structure === 'sub-dao' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Parent DAO *
+                </label>
+                <select
+                  value={formData.parentDAO}
+                  onChange={(e) => updateFormData('parentDAO', e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                >
+                  <option value="">Select Parent DAO</option>
+                  {existingDAOs.map((dao) => (
+                    <option key={dao.value} value={dao.value} className="bg-slate-800">
+                      {dao.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Logo Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                DAO Logo
+              </label>
+              <div className="flex items-center space-x-4">
+                <div className="w-20 h-20 rounded-lg bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center overflow-hidden">
+                  {formData.logo ? (
+                    <img
+                      src={URL.createObjectURL(formData.logo)}
+                      alt="DAO Logo"
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                  ) : (
+                    <Upload className="h-8 w-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    id="logo-upload"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/svg+xml"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="logo-upload"
+                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium cursor-pointer transition-colors"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>Upload Logo</span>
+                  </label>
+                  <p className="text-xs text-gray-400 mt-1">
+                    300x300px recommended. JPG, PNG, GIF, SVG. Max size: 10MB
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* DAO Name */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 DAO Name *
@@ -226,17 +481,214 @@ const CreateDAO: React.FC = () => {
                 placeholder="e.g., PulseChain Builders DAO"
               />
             </div>
+            
+            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Description *
+                Description * (minimum 80 characters)
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => updateFormData('description', e.target.value)}
                 rows={4}
+                maxLength={280}
                 className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all resize-none"
                 placeholder="Describe your DAO's mission and goals..."
               />
+              <div className="flex justify-between items-center mt-2">
+                <span className={`text-sm ${formData.description.length < 80 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {formData.description.length < 80 
+                    ? `${80 - formData.description.length} more characters needed`
+                    : `${formData.description.length}/280 characters`
+                  }
+                </span>
+                {formData.description.length >= 80 && (
+                  <Check className="h-4 w-4 text-green-400" />
+                )}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Tags (up to 5)
+              </label>
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {formData.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-sm"
+                    >
+                      <span>{tag}</span>
+                      <button
+                        onClick={() => removeTag(tag)}
+                        className="text-purple-400 hover:text-purple-300"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                {formData.tags.length < 5 && (
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                      className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="Add a tag..."
+                    />
+                    <button
+                      onClick={addTag}
+                      className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Social Links */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">Social Links</h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Website URL
+                  </label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="url"
+                      value={formData.social.website}
+                      onChange={(e) => updateSocialData('website', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="https://your-dao.com"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Twitter/X Handle
+                  </label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={formData.social.twitter}
+                      onChange={(e) => updateSocialData('twitter', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="@yourdao"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Discord Invite
+                  </label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="url"
+                      value={formData.social.discord}
+                      onChange={(e) => updateSocialData('discord', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="https://discord.gg/yourdao"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Telegram Group
+                  </label>
+                  <div className="relative">
+                    <Send className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="url"
+                      value={formData.social.telegram}
+                      onChange={(e) => updateSocialData('telegram', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                      placeholder="https://t.me/yourdao"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Social Links */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Custom Social Links
+                  </label>
+                  <button
+                    onClick={() => setShowCustomSocialForm(true)}
+                    className="flex items-center space-x-2 px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>Add Custom</span>
+                  </button>
+                </div>
+
+                {formData.social.custom.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {formData.social.custom.map((social, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                        <div>
+                          <span className="text-white font-medium">{social.name}</span>
+                          <span className="text-gray-400 text-sm ml-2">{social.url}</span>
+                        </div>
+                        <button
+                          onClick={() => removeCustomSocial(index)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showCustomSocialForm && (
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={newCustomSocial.name}
+                        onChange={(e) => setNewCustomSocial(prev => ({ ...prev, name: e.target.value }))}
+                        className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                        placeholder="Platform name"
+                      />
+                      <input
+                        type="url"
+                        value={newCustomSocial.url}
+                        onChange={(e) => setNewCustomSocial(prev => ({ ...prev, url: e.target.value }))}
+                        className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={addCustomSocial}
+                        className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm transition-colors"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => setShowCustomSocialForm(false)}
+                        className="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white text-sm transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -244,6 +696,45 @@ const CreateDAO: React.FC = () => {
       case 2:
         return (
           <div className="space-y-6">
+            {/* Token Logo Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Token Logo
+              </label>
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 rounded-full bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center overflow-hidden">
+                  {formData.tokenLogo ? (
+                    <img
+                      src={URL.createObjectURL(formData.tokenLogo)}
+                      alt="Token Logo"
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  ) : (
+                    <Upload className="h-6 w-6 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    id="token-logo-upload"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/svg+xml"
+                    onChange={handleTokenLogoUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="token-logo-upload"
+                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium cursor-pointer transition-colors"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>Upload Token Logo</span>
+                  </label>
+                  <p className="text-xs text-gray-400 mt-1">
+                    100x100px recommended. JPG, PNG, GIF, SVG. Max size: 5MB
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -325,21 +816,21 @@ const CreateDAO: React.FC = () => {
       case 4:
         return (
           <div className="space-y-8">
-            {/* Introduction to Governance Members */}
-            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl border border-blue-500/20 p-6 mb-8">
-              <div className="text-center text-white mb-4">
-                Want to Aggregate or Create Governance on plsdao.xyz?
-              </div>
+            {/* Header Banner */}
+            <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-500/10 to-pink-500/10 border border-blue-500/20">
+              <h3 className="text-lg font-semibold text-white mb-2">Want to Aggregate or Create Governance on daobase.ai?</h3>
             </div>
 
+            {/* 1. Introduction to Governance Members */}
             <div>
               <h3 className="text-xl font-semibold text-white mb-4">Introduction to Governance Members</h3>
-              <textarea
-                value={formData.governanceIntro}
-                onChange={(e) => updateFormData('governanceIntro', e.target.value)}
-                rows={8}
-                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all resize-none"
-                placeholder="For example, our XX DAO primarily uses the Snapshot platform for proposal submissions.
+              <div className="space-y-4">
+                <textarea
+                  value={formData.governanceIntro}
+                  onChange={(e) => updateFormData('governanceIntro', e.target.value)}
+                  rows={8}
+                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all resize-none"
+                  placeholder="For example, our XX DAO primarily uses the Snapshot platform for proposal submissions.
 
 Proposal Process:
 Users share their ideas on Discord and the forum, after which admins create Snapshot proposals for voting.
@@ -349,174 +840,194 @@ XX is our governance token, and voting power is primarily determined by the XX s
 
 Core Contributors:
 Our core contributors also serve as multisig wallet members, namely AAA, BBB, CCC, and DDD."
-              />
-              <p className="text-sm text-gray-400 mt-2 italic">
-                Uploading profiles or images helps provide a clearer understanding of the governance framework.
-              </p>
-              
-              {/* Image Upload */}
-              <div className="mt-4 p-8 border-2 border-dashed border-white/20 rounded-lg text-center">
-                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-400 mb-2">Upload governance framework image</p>
-                <p className="text-xs text-gray-500">
-                  File types Supported: JPG, PNG, GIF, SVG. Max size: 100 M
-                </p>
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.gif,.svg"
-                  onChange={(e) => updateFormData('governanceImage', e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="governance-image"
                 />
-                <label
-                  htmlFor="governance-image"
-                  className="inline-block mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg cursor-pointer transition-colors"
-                >
-                  Choose File
-                </label>
+                <p className="text-sm text-gray-400 italic">
+                  Uploading profiles or images helps provide a clearer understanding of the governance framework.
+                </p>
+                
+                {/* Image Upload */}
+                <div className="mt-4">
+                  <div className="w-full h-32 rounded-lg bg-white/5 border-2 border-dashed border-white/20 flex flex-col items-center justify-center overflow-hidden">
+                    {formData.governanceImage ? (
+                      <img
+                        src={URL.createObjectURL(formData.governanceImage)}
+                        alt="Governance"
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-400 text-center">
+                          File types Supported:<br />
+                          JPG, PNG, GIF, SVG Max size: 100 M
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    id="governance-image-upload"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/svg+xml"
+                    onChange={handleGovernanceImageUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="governance-image-upload"
+                    className="mt-2 inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium cursor-pointer transition-colors"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>Upload Image</span>
+                  </label>
+                </div>
               </div>
             </div>
 
-            {/* Governance Token Contract */}
+            {/* 2. Governance Token Contract */}
             <div>
               <h3 className="text-xl font-semibold text-white mb-4">Governance Token Contract:</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="relative">
                   <select
-                    value={formData.tokenType}
-                    onChange={(e) => updateFormData('tokenType', e.target.value)}
+                    value={formData.tokenContractType}
+                    onChange={(e) => updateFormData('tokenContractType', e.target.value)}
                     className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none"
                   >
-                    <option value="ERC20">ERC20</option>
                     <option value="NFT">NFT</option>
+                    <option value="ERC20">ERC20</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                 </div>
+                
                 <div className="relative">
                   <select
-                    value={formData.network}
-                    onChange={(e) => updateFormData('network', e.target.value)}
+                    value={formData.tokenNetwork}
+                    onChange={(e) => updateFormData('tokenNetwork', e.target.value)}
                     className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none"
                   >
-                    <option value="PulseChain">PulseChain</option>
                     <option value="Ethereum">Ethereum</option>
                     <option value="Polygon">Polygon</option>
+                    <option value="PulseChain">PulseChain</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                 </div>
-                <div className="flex">
+                
+                <div className="flex items-center space-x-2">
                   <input
                     type="text"
-                    value={formData.tokenAddress}
-                    onChange={(e) => updateFormData('tokenAddress', e.target.value)}
+                    value={formData.tokenContractAddress}
+                    onChange={(e) => updateFormData('tokenContractAddress', e.target.value)}
+                    className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                     placeholder="address"
-                    className="flex-1 px-4 py-3 rounded-l-lg bg-white/5 border border-white/20 border-r-0 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                   />
-                  <button className="px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-r-lg transition-all">
+                  <button className="px-4 py-3 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all">
                     + Add
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Set Up Voting Page */}
+            {/* 3. Set Up Voting Page */}
             <div>
               <h3 className="text-xl font-semibold text-white mb-4">Set Up Voting Page:</h3>
-              <p className="text-gray-400 mb-4">Already have a voting page? Share your link down below.</p>
+              <p className="text-gray-300 mb-4">Already have a voting page? Share your link down below.</p>
               
-              <div className="flex mb-6">
-                <div className="relative flex-shrink-0">
-                  <select
-                    value={formData.votingPlatform}
-                    onChange={(e) => updateFormData('votingPlatform', e.target.value)}
-                    className="px-4 py-3 rounded-l-lg bg-white/5 border border-white/20 border-r-0 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none pr-8"
-                  >
-                    <option value="Snapshot">Snapshot</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <div className="relative flex-1">
+                    <select
+                      value="Snapshot"
+                      className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none"
+                    >
+                      <option value="Snapshot">Snapshot</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  </div>
+                  <input
+                    type="url"
+                    value={formData.snapshotUrl}
+                    onChange={(e) => updateFormData('snapshotUrl', e.target.value)}
+                    className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                    placeholder="https://snapshot.org/#/example"
+                  />
+                  <button className="px-4 py-3 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all">
+                    + Add
+                  </button>
                 </div>
-                <input
-                  type="url"
-                  value={formData.votingUrl}
-                  onChange={(e) => updateFormData('votingUrl', e.target.value)}
-                  placeholder="https://snapshot.org/#/example"
-                  className="flex-1 px-4 py-3 bg-white/5 border border-white/20 border-l-0 border-r-0 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                />
-                <button className="px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-r-lg transition-all">
+                
+                <p className="text-sm text-gray-400 italic">
+                  Note: Supported protocols: Snapshot, Aragon, XDAO, Colony, Tally, Compound, OpenZeppelin, Nouns, PartyDAO, Homebase, and Moloch.
+                </p>
+                
+                <div className="space-y-2">
+                  <p className="text-white">Don't have a voting page yet? Click below to create one:</p>
+                  <a
+                    href="https://v1.snapshot.box/#/setup?step=0"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all"
+                  >
+                    <span>NEW Create Voting Right Now</span>
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+                
+                <p className="text-sm text-gray-400">
+                  Tip: DAOBase offers full support for creating proposals, voting, and delegation, integrated with Snapshot's backend.
+                </p>
+              </div>
+            </div>
+
+            {/* 4. DAO Profile Administrator */}
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-4">DAO Profile Administrator</h3>
+              <p className="text-gray-300 mb-4">
+                You can add operational roles or additional administrators to help manage your DAO page on daobase.ai. Simply fill in the information below!
+              </p>
+              
+              <div className="space-y-4">
+                {/* Administrator Table */}
+                <div className="bg-white/5 rounded-lg border border-white/10">
+                  <div className="grid grid-cols-4 gap-4 p-4 border-b border-white/10 text-sm font-medium text-gray-400">
+                    <div>Added Time</div>
+                    <div>Address</div>
+                    <div>Identity</div>
+                    <div>Operations</div>
+                  </div>
+                  
+                  {formData.administrators.map((admin, index) => (
+                    <div key={index} className="grid grid-cols-4 gap-4 p-4 border-b border-white/10 last:border-b-0">
+                      <div className="text-white text-sm">{admin.addedTime}</div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-white text-sm font-mono">{admin.address.slice(0, 10)}...{admin.address.slice(-8)}</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(admin.address)}
+                          className="text-gray-400 hover:text-white"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="text-white text-sm">{admin.identity}</div>
+                      <div>
+                        {admin.identity !== 'Creator' && (
+                          <button
+                            onClick={() => removeAdministrator(index)}
+                            className="text-red-400 hover:text-red-300 text-sm"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <button
+                  onClick={() => setShowAddAdministrator(true)}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all"
+                >
                   + Add
                 </button>
               </div>
-
-              <p className="text-gray-400 text-sm mb-4">Don't have a voting page yet? Click below to create one:</p>
-              <a
-                href="https://v1.snapshot.box/#/setup?step=0"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all"
-              >
-                NEW Create Voting Right Now
-              </a>
-              
-              <p className="text-gray-400 text-sm mt-4">
-                Tip: plsdao.xyz offers full support for creating proposals, voting, and delegation, integrated with Snapshot's backend.
-              </p>
-            </div>
-
-            {/* DAO Profile Administrator */}
-            <div>
-              <h3 className="text-xl font-semibold text-white mb-4">DAO Profile Administrator</h3>
-              <p className="text-gray-400 mb-6">
-                You can add operational roles or additional administrators to help manage your DAO page on plsdao.xyz. Simply fill in the information below!
-              </p>
-              
-              {/* Administrator Table */}
-              <div className="bg-white/5 rounded-lg border border-white/10 overflow-hidden mb-4">
-                <div className="grid grid-cols-4 gap-4 p-4 bg-white/5 border-b border-white/10 text-gray-400 text-sm font-medium">
-                  <div>Added Time</div>
-                  <div>Address</div>
-                  <div>Identity</div>
-                  <div>Operations</div>
-                </div>
-                
-                {formData.administrators.map((admin) => (
-                  <div key={admin.id} className="grid grid-cols-4 gap-4 p-4 border-b border-white/10 last:border-b-0">
-                    <div className="text-white text-sm">
-                      {admin.addedTime.toLocaleDateString()} {admin.addedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-white text-sm font-mono">
-                        {admin.address.slice(0, 10)}...{admin.address.slice(-8)}
-                      </span>
-                      <button
-                        onClick={() => copyToClipboard(admin.address)}
-                        className="text-purple-400 hover:text-purple-300"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <div className="text-white text-sm">
-                      {admin.isCreator ? 'Creator' : admin.identity}
-                    </div>
-                    <div>
-                      {!admin.isCreator && (
-                        <button
-                          onClick={() => handleRemoveAdmin(admin.id)}
-                          className="text-red-400 hover:text-red-300"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <button
-                onClick={() => setShowAddAdmin(true)}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg transition-all"
-              >
-                + Add
-              </button>
             </div>
           </div>
         );
@@ -525,43 +1036,103 @@ Our core contributors also serve as multisig wallet members, namely AAA, BBB, CC
         return (
           <div className="space-y-6">
             {/* Calendar Header */}
-            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl border border-blue-500/20 p-6 mb-8">
-              <p className="text-white text-center">
+            <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-500/10 to-pink-500/10 border border-blue-500/20">
+              <div className="flex items-center space-x-3 mb-4">
+                <Calendar className="h-6 w-6 text-blue-400" />
+                <h3 className="text-lg font-semibold text-white">Calendar Integration</h3>
+              </div>
+              <p className="text-gray-300 text-sm mb-4">
                 In the "Calendar" section, we track DAO activities, keeping users informed for seamless participation.
               </p>
-              <p className="text-white text-center mt-4">
-                Currently, we aggregate <strong>DAO Google Calendar schedules</strong>, <strong>proposal alerts</strong>, and <strong>Twitter Space events</strong>. The latter two are automated, and for Google Calendar, share the public link below for integration.
+              <p className="text-gray-300 text-sm">
+                Currently, we aggregate <span className="text-blue-300 font-medium">DAO Google Calendar schedules</span>, <span className="text-purple-300 font-medium">proposal alerts</span>, and <span className="text-pink-300 font-medium">Twitter Space events</span>. The latter two are automated, and for Google Calendar, share the public link below for integration.
               </p>
             </div>
 
             {/* Google Calendar Link */}
             <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <h3 className="text-xl font-semibold text-white">Google Calendar Link</h3>
-                <span className="text-red-400 text-sm">(You need to set the calendar permissions to public.)</span>
+              <div className="flex items-center space-x-2 mb-3">
+                <label className="block text-lg font-medium text-white">
+                  Google Calendar Link
+                </label>
+                <span className="text-sm text-pink-400 font-medium">
+                  (You need to set the calendar permissions to public.)
+                </span>
               </div>
-              
-              <div className="flex">
+              <div className="flex items-center space-x-3">
                 <input
                   type="url"
-                  value={formData.calendarUrl}
-                  onChange={(e) => updateFormData('calendarUrl', e.target.value)}
+                  value={formData.googleCalendarLink}
+                  onChange={(e) => updateFormData('googleCalendarLink', e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                   placeholder="https://calendar.google.com/calendar/embed?src=example"
-                  className="flex-1 px-4 py-3 rounded-l-lg bg-white/5 border border-white/20 border-r-0 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                 />
-                <button className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-r-lg transition-all">
+                <button
+                  onClick={() => {
+                    if (formData.googleCalendarLink.trim()) {
+                      alert('Calendar link added successfully!');
+                    } else {
+                      alert('Please enter a valid Google Calendar link');
+                    }
+                  }}
+                  className="px-6 py-3 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-medium transition-all"
+                >
                   + Add
                 </button>
               </div>
+              <p className="text-sm text-gray-400 mt-2">
+                Share your public Google Calendar link to integrate DAO events and meetings
+              </p>
             </div>
 
-            {/* Deployment Section */}
+            {/* Features List */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Calendar className="h-5 w-5 text-blue-400" />
+                  <h4 className="text-blue-300 font-medium">Google Calendar</h4>
+                </div>
+                <p className="text-blue-200 text-sm">
+                  Sync your DAO's meeting schedule and important events
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="flex items-center space-x-2 mb-2">
+                  <AlertCircle className="h-5 w-5 text-purple-400" />
+                  <h4 className="text-purple-300 font-medium">Proposal Alerts</h4>
+                </div>
+                <p className="text-purple-200 text-sm">
+                  Automated notifications for new proposals and voting deadlines
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-pink-500/10 border border-pink-500/20">
+                <div className="flex items-center space-x-2 mb-2">
+                  <MessageCircle className="h-5 w-5 text-pink-400" />
+                  <h4 className="text-pink-300 font-medium">Twitter Spaces</h4>
+                </div>
+                <p className="text-pink-200 text-sm">
+                  Automatic tracking of DAO-related Twitter Space events
+                </p>
+              </div>
+            </div>
+
+            {/* Review Section */}
             <div className="p-6 rounded-lg bg-white/5 border border-white/10">
               <h3 className="text-lg font-semibold text-white mb-4">Review Your DAO</h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
+                  <span className="text-gray-400">Type:</span>
+                  <span className="text-white">{daoTypes.find(type => type.value === formData.daoType)?.label}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-gray-400">Name:</span>
                   <span className="text-white">{formData.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Structure:</span>
+                  <span className="text-white capitalize">{formData.structure.replace('-', ' ')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Token:</span>
@@ -687,9 +1258,9 @@ Our core contributors also serve as multisig wallet members, namely AAA, BBB, CC
 
         {/* Progress Bar */}
         <div className="mb-12">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-8 overflow-x-auto">
             {steps.map((step, index) => (
-              <div key={step.number} className="flex flex-col items-center flex-1">
+              <div key={step.number} className="flex flex-col items-center flex-1 min-w-0">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 mb-2 transition-all ${
                   currentStep > step.number
                     ? 'bg-green-500 border-green-500 text-white'
@@ -709,7 +1280,7 @@ Our core contributors also serve as multisig wallet members, namely AAA, BBB, CC
                   }`}>
                     {step.title}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1 hidden sm:block">
+                  <div className="text-xs text-gray-500 mt-1 hidden sm:block whitespace-pre-line">
                     {step.description}
                   </div>
                 </div>
@@ -755,7 +1326,7 @@ Our core contributors also serve as multisig wallet members, namely AAA, BBB, CC
             {currentStep === 4 && (
               <button
                 onClick={handleNext}
-                className="px-6 py-3 rounded-lg border border-white/20 text-white hover:bg-white/5 transition-all"
+                className="px-6 py-3 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium transition-all"
               >
                 Skip
               </button>
@@ -790,7 +1361,7 @@ Our core contributors also serve as multisig wallet members, namely AAA, BBB, CC
         </div>
 
         {/* Add Administrator Modal */}
-        {showAddAdmin && (
+        {showAddAdministrator && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -800,7 +1371,7 @@ Our core contributors also serve as multisig wallet members, namely AAA, BBB, CC
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">DAO Profile Administrator</h2>
                 <button
-                  onClick={() => setShowAddAdmin(false)}
+                  onClick={() => setShowAddAdministrator(false)}
                   className="text-gray-400 hover:text-white"
                 >
                   <X className="h-6 w-6" />
@@ -812,57 +1383,57 @@ Our core contributors also serve as multisig wallet members, namely AAA, BBB, CC
                   <h3 className="text-lg font-semibold text-white mb-4">Add DAO member</h3>
                   <input
                     type="text"
-                    value={newAdminAddress}
-                    onChange={(e) => setNewAdminAddress(e.target.value)}
-                    placeholder="Address"
+                    value={newAdministrator.address}
+                    onChange={(e) => setNewAdministrator(prev => ({ ...prev, address: e.target.value }))}
                     className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                    placeholder="Address"
                   />
                 </div>
                 
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-4">Identity</h3>
                   <div className="space-y-3">
-                    <div
-                      onClick={() => setNewAdminIdentity('Administrator')}
-                      className={`p-4 rounded-lg cursor-pointer transition-all ${
-                        newAdminIdentity === 'Administrator'
-                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                          : 'bg-white/5 border border-white/20 text-gray-300 hover:bg-white/10'
-                      }`}
-                    >
-                      <h4 className="font-medium mb-2">Administrator</h4>
-                      <p className="text-sm">
-                        Any information in DAO can be adjusted, except for receiving PASS income
-                      </p>
-                    </div>
-                    
-                    <div
-                      onClick={() => setNewAdminIdentity('Editor')}
-                      className={`p-4 rounded-lg cursor-pointer transition-all ${
-                        newAdminIdentity === 'Editor'
-                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                          : 'bg-white/5 border border-white/20 text-gray-300 hover:bg-white/10'
-                      }`}
-                    >
-                      <h4 className="font-medium mb-2">Editor</h4>
-                      <p className="text-sm">
-                        The basic information of DAO and treasury information can be edited but not the member
-                      </p>
-                    </div>
+                    {[
+                      { 
+                        value: 'Administrator', 
+                        label: 'Administrator', 
+                        description: 'Any information in DAO can be adjusted, except for receiving PASS income',
+                        color: 'from-pink-500 to-purple-500'
+                      },
+                      { 
+                        value: 'Editor', 
+                        label: 'Editor', 
+                        description: 'the basic information of DAO and treasury information can be edited but not the member',
+                        color: 'from-blue-500 to-purple-500'
+                      }
+                    ].map((role) => (
+                      <div
+                        key={role.value}
+                        onClick={() => setNewAdministrator(prev => ({ ...prev, identity: role.value as any }))}
+                        className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                          newAdministrator.identity === role.value
+                            ? `bg-gradient-to-r ${role.color} border-transparent`
+                            : 'bg-white/5 border-white/20 hover:border-white/40'
+                        }`}
+                      >
+                        <h4 className="text-white font-medium mb-2">{role.label}</h4>
+                        <p className="text-gray-300 text-sm">{role.description}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
               
               <div className="flex items-center justify-end space-x-4 mt-8">
                 <button
-                  onClick={() => setShowAddAdmin(false)}
-                  className="px-6 py-3 rounded-lg border border-white/20 text-white hover:bg-white/5 transition-all"
+                  onClick={() => setShowAddAdministrator(false)}
+                  className="px-6 py-3 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium transition-colors"
                 >
                   CANCEL
                 </button>
                 <button
-                  onClick={handleAddAdmin}
-                  className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-all"
+                  onClick={addAdministrator}
+                  className="px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium transition-all"
                 >
                   SAVE
                 </button>
