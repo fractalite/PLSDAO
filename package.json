@@ -16,7 +16,15 @@
     "react-router-dom": "^6.26.1",
     "ethers": "^6.13.2",
     "@supabase/supabase-js": "^2.45.4",
-    "framer-motion": "^11.5.4"
+    "framer-motion": "^11.5.4",
+    "moralis": "^2.27.2",
+    "@moralisweb3/common-evm-utils": "^2.27.2",
+    "@walletconnect/web3-modal": "^1.8.0",
+    "@walletconnect/ethereum-provider": "^2.11.2",
+    "@web3modal/wagmi": "^4.1.7",
+    "@web3modal/siwe": "^4.1.7",
+    "wagmi": "^2.5.7",
+    "viem": "^2.7.15"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { WalletProvider } from './contexts/WalletContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import WalletModal from './components/WalletModal';
 import Landing from './pages/Landing';
 import CreateDAO from './pages/CreateDAO';
 import Browse from './pages/Browse';
@@ -29,6 +30,7 @@ function App() {
             </Routes>
           </main>
           <Footer />
+          <WalletModal />
         </div>
       </Router>
     </WalletProvider>
